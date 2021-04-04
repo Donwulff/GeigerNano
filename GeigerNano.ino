@@ -22,17 +22,21 @@ LiquidCrystalI2C_RS_EN(lcd, 0x27, false)
 #define Period (60)                       // the period of 1 minute for calculating the CPM values
 #define CONVERSION (151.0)                // Conversion factor from counts to uSv/h; see comments
 
-int Counts = 0;                           // variable containing the number of GM Tube events within the LOGtime
-int AVGCPM = 0;                           // variable containing the floating average number of counts over a fixed moving window period
-
-bool Starting = true;                     // 
-int INT = 0;                              // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
-bool WasInt = false;                      // Debugging flag to see if we've run during interrupt handling, which would be bad.
-unsigned long DeadTime = 99999;           //
-unsigned long LastTick = 0;
-
 int COUNTS[Period];                        // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
 int Slot = 0;                              // pointer to round robin location in COUNTS
+
+int AVGCPM = 0;                           // variable containing the floating average number of counts over a fixed moving window period
+int Counts = 0;                           // variable containing the number of GM Tube events within the LOGtime
+
+bool Starting = true;                     // 
+
+#ifdef TEST_INT
+int INT = 0;                              // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
+bool WasInt = false;                      // Debugging flag to see if we've run during interrupt handling, which would be bad.
+#endif
+
+unsigned long DeadTime = 99999;           //
+unsigned long LastTick = 0;
 
 void setup() {
   // most backpacks have the backlight on pin 3.
@@ -106,10 +110,12 @@ void setup() {
     lcd.print(char(0));                                // The +/- symbol
     lcd.print(STDCPM);
 
+#ifdef TEST_INT
     if (INT || WasInt) {
       WasInt = true;
       lcd.print("WI ");                                // Indicator for non-atomic interrupt problem; shouldn't happen
     }
+#endif
     lcd.print("     ");                                // Clear any possible leftover on screen
 
     // Status is always 7 characters long so we can print over previous status, one extra for ending zero
@@ -146,17 +152,23 @@ void loop() {
 
 void IMPULSE()
 {
+#ifdef TEST_INT
   // https://microchipdeveloper.com/8avr:int Interrupts within interrupts shouldn't happen on AVR, but then again what hardware are you running?
   if (1 == INT) {
     WasInt = true;
   }
   INT = 1;
+#endif
+
+  Counts++;
   unsigned long Micros = micros();
   // When micros rolls over, it will be maxint so won't be smaller.
   if ((Micros - LastTick) < DeadTime) {
     DeadTime = Micros - LastTick;
   }
   LastTick = Micros;
-  Counts++;
+
+#ifdef TEST_INT
   INT = 0;
+#endif
 }
