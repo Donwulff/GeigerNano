@@ -121,11 +121,19 @@ void setup() {
     // Status is always 7 characters long so we can print over previous status, one extra for ending zero
     // http://www-ns.iaea.org/downloads/iec/health-hazard-perspec-charts2013.pdf 1 month living limits; check for contamination of ingestibles!
     char Status[8] = "Safety";
+#ifdef IAEA_THRESHOLDS
     if (Sievert > 100) {
       strcpy((char*)&Status, "Danger");
     } else if (Sievert > 25) {
       strcpy((char*)&Status, "Warning");
     }
+#else
+    if (Sievert > 10) {
+      strcpy((char*)&Status, "Danger!");
+    } else if (Sievert > 0.5) {
+      strcpy((char*)&Status, "Unsafe");
+    }
+#endif
     lcd.setCursor(16 - strlen(Status), 0);
     lcd.print(Status);
 
