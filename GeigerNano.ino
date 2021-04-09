@@ -3,6 +3,13 @@
 #include <LiquidCrystalIO.h>
 #include <SPI.h>
 
+// Pin which may enable piezo speaker when HIGH, leave undefined for quiet
+#define SOUND_PIN 8
+// Use IAEA thresholds for radiation safety. WARNING: May not be able to measure that high rate, false sense of security
+// #define IAEA_THRESHOLDS
+// Hardware test, check for nested interrupts or code running during interrupt, normally comment this out
+#define TEST_INT
+
 // When using the I2C version, these two extra includes are always needed. Doing this reduces the memory slightly for
 // users that are not using I2C.
 #include <IoAbstractionWire.h>
@@ -60,6 +67,11 @@ void setup() {
   for (int idx = 0; idx < Period; idx++) {             // put all data in the Array COUNTS to 0 (Array positions run from 0 to Period-1);
     COUNTS[idx] = 0;                                   // positions covering number of seconds as defined in Period
   }
+
+#ifdef SOUND_PIN
+  pinMode(SOUND_PIN, OUTPUT);                          // Enable 5v on pin that could be connected to piezo
+  digitalWrite(SOUND_PIN, HIGH);                       // Enable 5v on pin that could be connected to piezo
+#endif
 
   taskManager.scheduleFixedRate(LOGtime, [] {
     // SURVEY METER: If current second indicates large change, reset to new CPM
