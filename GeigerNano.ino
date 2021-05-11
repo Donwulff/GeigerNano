@@ -27,15 +27,19 @@ LiquidCrystalI2C_RS_EN(lcd, 0x27, false)
 
 #define LOGtime (1000)                    // Logging time in milliseconds (1 second)
 #define Period (60)                       // the period of 1 minute for calculating the CPM values
-#define CONVERSION (151.0)                // Conversion factor from counts to uSv/h; see comments
+#define CONVERSION (151.0*2)              // Conversion factor from counts to uSv/h; see comments
+#define COINCIDENCE (20)                  // Interrupt processing time for co-incidence detection
 
-int COUNTS[Period];                        // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
-int Slot = 0;                              // pointer to round robin location in COUNTS
+int Coincidence = 0;                      // Count of coincidences
+int COUNTS[Period];                       // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
+int Slot = 0;                             // pointer to round robin location in COUNTS
 
 int AVGCPM = 0;                           // variable containing the floating average number of counts over a fixed moving window period
-int Counts = 0;                           // variable containing the number of GM Tube events within the LOGtime
+int Counts1 = 0;                          // variable containing the number of GM Tube events within the LOGtime
+int Counts2 = 0;                          // tube 2
 
 bool Starting = true;                     // 
+int Start;
 
 #ifdef TEST_INT
 int INT = 0;                              // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
@@ -43,7 +47,8 @@ bool WasInt = false;                      // Debugging flag to see if we've run 
 #endif
 
 unsigned long DeadTime = 99999;           //
-unsigned long LastTick = 0;
+unsigned long LastTick1 = 0;
+unsigned long LastTick2 = 0;              // tube 2
 
 void setup() {
   // most backpacks have the backlight on pin 3.
@@ -75,17 +80,17 @@ void setup() {
 
   taskManager.scheduleFixedRate(LOGtime, [] {
     // SURVEY METER: If current second indicates large change, reset to new CPM
-    if (!Starting && abs(Counts * Period - AVGCPM) > 1000) {
+    if (!Starting && abs((Counts1 + Counts2) * Period - AVGCPM) > 1000) {
       Starting = true;
       for (int idx = 0; idx < Period; idx++) {
-        COUNTS[idx] = Counts;
+        COUNTS[idx] = Counts1 + Counts2;
       }
       Slot = 0;
     }
 
     // Update AVGCPM
     AVGCPM = 0;
-    COUNTS[Slot] = Counts;
+    COUNTS[Slot] = Counts1 + Counts2;
     for (int idx = 0; idx < Period; idx++) {           // add all data in the Array COUNTS together
       AVGCPM += COUNTS[idx];                           // and calculate the rolling average CPM over Period seconds
     }
@@ -113,7 +118,8 @@ void setup() {
     // This would give us 123.147 for 60Co, 80.661 for 137Cs based on above reported SBM-20 comparison. This gives too high readings for radon background.
     // The CAJOE-1.3 original sketch has conversion factor around 151, which seems closer to SBS-20 value, but I'm leaving it as default for compatibility.
     float Sievert = (AVGCPM / CONVERSION);
-    Counts = 0;
+    Counts1 = 0;
+    Counts2 = 0;
 
     // lcd.clear(); // Causes
     lcd.setCursor(0, 0);
@@ -155,7 +161,9 @@ void setup() {
     lcd.print(" \x01Sv/h");
 
     lcd.print(" ");
-    lcd.print(DeadTime);
+    lcd.print(Coincidence);
+    lcd.print(" ");
+    lcd.print(3600000*Coincidence/(millis()-Start));
     lcd.print("    ");
 
     Serial.println(AVGCPM);                            // Serial printout for Arduino Serial Plotter or analysis
@@ -163,14 +171,16 @@ void setup() {
 
   Serial.begin(9600);
 
-  attachInterrupt(0, IMPULSE, FALLING);
+  attachInterrupt(0, IMPULSE1, FALLING);
+  attachInterrupt(1, IMPULSE2, FALLING);
+  Start = millis();
 }
 
 void loop() {
   taskManager.runLoop();
 }
 
-void IMPULSE()
+void IMPULSE1()
 {
 #ifdef TEST_INT
   // https://microchipdeveloper.com/8avr:int Interrupts within interrupts shouldn't happen on AVR, but then again what hardware are you running?
@@ -180,15 +190,32 @@ void IMPULSE()
   INT = 1;
 #endif
 
-  Counts++;
+  Counts1++;
   unsigned long Micros = micros();
   // When micros rolls over, it will be maxint so won't be smaller.
-  if ((Micros - LastTick) < DeadTime) {
-    DeadTime = Micros - LastTick;
+  if ((Micros - LastTick1) < DeadTime) {
+    DeadTime = Micros - LastTick1;
   }
-  LastTick = Micros;
+  LastTick1 = Micros;
+  if(LastTick1 - LastTick2 < COINCIDENCE) {
+    Coincidence++;
+  }
 
 #ifdef TEST_INT
   INT = 0;
 #endif
+}
+
+void IMPULSE2()
+{
+  Counts2++;
+  unsigned long Micros = micros();
+  // When micros rolls over, it will be maxint so won't be smaller.
+  if ((Micros - LastTick2) < DeadTime) {
+    DeadTime = Micros - LastTick2;
+  }
+  LastTick2 = Micros;
+  if(LastTick2 - LastTick1 < COINCIDENCE) {
+    Coincidence++;
+  }
 }
