@@ -132,7 +132,7 @@ void setup() {
     lcd.setCursor(0, 0);
     // lcd.print("CPM=");                              // Matches original sketch, but isn't it kinda obvious? Save space for stddev
     lcd.print(AVGCPM);
-    lcd.print(char(0));                                // The +/- symbol
+    lcd.write((uint8_t)0);                             // The +/- symbol
     lcd.print(STDCPM);
 
 #ifdef TEST_INT
