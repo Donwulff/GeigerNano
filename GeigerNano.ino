@@ -24,7 +24,7 @@
 // use a custom configuration as you see in many other examples.
 
 // If your backpack is wired RS,RW,EN then use this version
-LiquidCrystalI2C_RS_EN(lcd, 0x27, false)
+LiquidCrystalI2C_RS_EN(lcd, 0x27, false);
 
 // If your backpack is wired EN,RW,RS then use this version instead of the above.
 //LiquidCrystalI2C_EN_RS(lcd, 0x20, false)
