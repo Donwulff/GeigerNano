@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <LiquidCrystalIO.h>
 #include <SPI.h>
+#include <TaskManagerIO.h>
 
 // Pin which may enable piezo speaker when HIGH, leave undefined for quiet
 #define SOUND_PIN 8
