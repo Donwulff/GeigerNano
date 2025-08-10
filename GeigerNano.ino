@@ -46,7 +46,9 @@ volatile int INT = 0;                     // Flag for tracking whether we're wit
 bool WasInt = false;                      // Debugging flag to see if we've run during interrupt handling, which would be bad.
 #endif
 
-volatile unsigned long DeadTime = 99999;  //
+// Track the shortest interval between counts. Initialise to the maximum so
+// the first measurement is always recorded.
+volatile unsigned long DeadTime = 0xFFFFFFFFUL;
 volatile unsigned long LastTick1 = 0;
 volatile unsigned long LastTick2 = 0;     // tube 2
 
