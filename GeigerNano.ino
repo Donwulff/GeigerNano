@@ -38,8 +38,8 @@ int AVGCPM = 0;                           // variable containing the floating av
 volatile int Counts1 = 0;                 // variable containing the number of GM Tube events within the LOGtime
 volatile int Counts2 = 0;                 // tube 2
 
-bool Starting = true;                     // 
-int Start;
+bool Starting = true;                     // Flag tracking initial sampling period
+unsigned long Start;                      // Millis value when logging started; must be 32-bit
 
 #ifdef TEST_INT
 volatile int INT = 0;                     // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
