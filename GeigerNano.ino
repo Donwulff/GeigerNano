@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <LiquidCrystalIO.h>
 #include <SPI.h>
+#include <stdlib.h>
 
 // Pin which may enable piezo speaker when HIGH, leave undefined for quiet
 #define SOUND_PIN 8
@@ -31,10 +32,10 @@ LiquidCrystalI2C_RS_EN(lcd, 0x27, false)
 #define COINCIDENCE (20)                  // Interrupt processing time for co-incidence detection
 
 volatile int Coincidence = 0;             // Count of coincidences
-int COUNTS[Period];                       // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
+uint16_t COUNTS[Period];                  // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
 int Slot = 0;                             // pointer to round robin location in COUNTS
 
-int AVGCPM = 0;                           // variable containing the floating average number of counts over a fixed moving window period
+unsigned long AVGCPM = 0;                 // variable containing the floating average number of counts over a fixed moving window period
 volatile int Counts1 = 0;                 // variable containing the number of GM Tube events within the LOGtime
 volatile int Counts2 = 0;                 // tube 2
 
@@ -79,8 +80,8 @@ void setup() {
 #endif
 
   taskManager.scheduleFixedRate(LOGtime, [] {
-    int counts1;
-    int counts2;
+    unsigned long counts1;
+    unsigned long counts2;
     noInterrupts();
     counts1 = Counts1;
     counts2 = Counts2;
@@ -89,7 +90,7 @@ void setup() {
     interrupts();
 
     // SURVEY METER: If current second indicates large change, reset to new CPM
-    if (!Starting && abs((counts1 + counts2) * Period - AVGCPM) > 1000) {
+    if (!Starting && labs((long)(counts1 + counts2) * Period - (long)AVGCPM) > 1000) {
       Starting = true;
       for (int idx = 0; idx < Period; idx++) {
         COUNTS[idx] = counts1 + counts2;
