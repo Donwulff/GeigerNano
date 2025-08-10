@@ -45,8 +45,8 @@ bool Starting = true;                     // Flag tracking initial sampling peri
 unsigned long Start;                      // Millis value when logging started; must be 32-bit
 
 #ifdef TEST_INT
-volatile int INT = 0;                     // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
-bool WasInt = false;                      // Debugging flag to see if we've run during interrupt handling, which would be bad.
+volatile bool INT = false;                // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
+volatile bool WasInt = false;             // Debugging flag to see if we've run during interrupt handling, which would be bad.
 #endif
 
 // Track the shortest interval between counts. Initialise to the maximum so
