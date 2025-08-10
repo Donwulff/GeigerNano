@@ -31,12 +31,12 @@ LiquidCrystalI2C_RS_EN(lcd, 0x27, false)
 #define COINCIDENCE (20)                  // Interrupt processing time for co-incidence detection
 
 volatile unsigned long Coincidence = 0;   // Count of coincidences
-int COUNTS[Period];                       // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
+unsigned long COUNTS[Period];             // array for storing the measured amounts of impulses in consecutive 1 second periods
 int Slot = 0;                             // pointer to round robin location in COUNTS
 
 unsigned long AVGCPM = 0;                 // variable containing the floating average number of counts over a fixed moving window period
-volatile int Counts1 = 0;                 // variable containing the number of GM Tube events within the LOGtime
-volatile int Counts2 = 0;                 // tube 2
+volatile unsigned long Counts1 = 0;       // variable containing the number of GM Tube events within the LOGtime
+volatile unsigned long Counts2 = 0;       // tube 2
 
 bool Starting = true;                     // Flag tracking initial sampling period
 unsigned long Start;                      // Millis value when logging started; must be 32-bit
@@ -79,8 +79,8 @@ void setup() {
 #endif
 
   taskManager.scheduleFixedRate(LOGtime, [] {
-    int counts1;
-    int counts2;
+    unsigned long counts1;
+    unsigned long counts2;
     noInterrupts();
     counts1 = Counts1;
     counts2 = Counts2;
