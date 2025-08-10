@@ -30,7 +30,7 @@ LiquidCrystalI2C_RS_EN(lcd, 0x27, false)
 #define CONVERSION (151.0*2)              // Conversion factor from counts to uSv/h; see comments
 #define COINCIDENCE (20)                  // Interrupt processing time for co-incidence detection
 
-volatile int Coincidence = 0;             // Count of coincidences
+volatile unsigned long Coincidence = 0;   // Count of coincidences
 int COUNTS[Period];                       // array for storing the measured amounts of impulses in 10 consecutive 1 second periods
 int Slot = 0;                             // pointer to round robin location in COUNTS
 
@@ -167,14 +167,14 @@ void setup() {
     lcd.print(Sievert);
     lcd.print(" \x01Sv/h");
 
-    int coincidence;
+    unsigned long coincidence;
     noInterrupts();
     coincidence = Coincidence;
     interrupts();
     lcd.print(" ");
     lcd.print(coincidence);
     lcd.print(" ");
-    lcd.print(3600000*coincidence/(millis()-Start));
+    lcd.print((unsigned long)((3600000ULL * coincidence) / (millis() - Start)));
     lcd.print("    ");
 
     Serial.println(AVGCPM);                            // Serial printout for Arduino Serial Plotter or analysis
