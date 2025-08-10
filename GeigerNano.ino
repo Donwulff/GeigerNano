@@ -5,6 +5,9 @@
 
 // Pin which may enable piezo speaker when HIGH, leave undefined for quiet
 #define SOUND_PIN 8
+// Pins used for the two tube inputs
+#define TUBE1_PIN 2
+#define TUBE2_PIN 3
 // Use IAEA thresholds for radiation safety. WARNING: May not be able to measure that high rate, false sense of security
 // #define IAEA_THRESHOLDS
 // Hardware test, check for nested interrupts or code running during interrupt, normally comment this out
@@ -182,8 +185,8 @@ void setup() {
 
   Serial.begin(9600);
 
-  attachInterrupt(0, IMPULSE1, FALLING);
-  attachInterrupt(1, IMPULSE2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(TUBE1_PIN), IMPULSE1, FALLING);
+  attachInterrupt(digitalPinToInterrupt(TUBE2_PIN), IMPULSE2, FALLING);
   Start = millis();
 }
 
