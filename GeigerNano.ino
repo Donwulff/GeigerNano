@@ -38,11 +38,13 @@ volatile unsigned long Coincidence = 0;   // Count of coincidences
 unsigned long COUNTS[Period];             // array for storing the measured amounts of impulses in consecutive 1 second periods
 int Slot = 0;                             // pointer to round robin location in COUNTS
 
-unsigned long AVGCPM = 0;                 // variable containing the floating average number of counts over a fixed moving window period
+unsigned long AVGCPM = 0;                 // counts per minute over the sliding window
 volatile unsigned long Counts1 = 0;       // variable containing the number of GM Tube events within the LOGtime
 volatile unsigned long Counts2 = 0;       // tube 2
 
-bool Starting = true;                     // Flag tracking initial sampling period
+unsigned long SumCounts = 0;              // running sum of samples in window
+unsigned long SumSquares = 0;             // running sum of squared samples
+unsigned int Samples = 0;                 // number of valid samples in window
 unsigned long Start;                      // Millis value when logging started; must be 32-bit
 
 #ifdef TEST_INT
@@ -78,6 +80,9 @@ void setup() {
   for (int idx = 0; idx < Period; idx++) {             // put all data in the Array COUNTS to 0 (Array positions run from 0 to Period-1);
     COUNTS[idx] = 0;                                   // positions covering number of seconds as defined in Period
   }
+  SumCounts = 0;
+  SumSquares = 0;
+  Samples = 0;
 
 #ifdef SOUND_PIN
   pinMode(SOUND_PIN, OUTPUT);                          // Enable 5v on pin that could be connected to piezo
@@ -94,38 +99,36 @@ void setup() {
     Counts2 = 0;
     interrupts();
 
+    unsigned long newCount = counts1 + counts2;
+
     // SURVEY METER: If current second indicates large change, reset to new CPM
-    if (!Starting && labs(((long)counts1 + (long)counts2) * Period - (long)AVGCPM) > 1000) {
-      Starting = true;
+    if (Samples >= Period && labs((long)newCount * Period - (long)AVGCPM) > 1000) {
       for (int idx = 0; idx < Period; idx++) {
-        COUNTS[idx] = counts1 + counts2;
+        COUNTS[idx] = newCount;
       }
       Slot = 0;
+      SumCounts = newCount * Period;
+      SumSquares = newCount * newCount * Period;
+      Samples = Period;
     }
 
-    // Update AVGCPM
-    AVGCPM = 0;
-    COUNTS[Slot] = counts1 + counts2;
-    for (int idx = 0; idx < Period; idx++) {           // add all data in the Array COUNTS together
-      AVGCPM += COUNTS[idx];                           // and calculate the rolling average CPM over Period seconds
-    }
-    Slot++;
-    // This assumes we only sum over new samples, right now we don't.
-    if (0 && Starting) {
-      AVGCPM = AVGCPM * 60 / Slot;
+    unsigned long oldCount = COUNTS[Slot];
+    COUNTS[Slot] = newCount;
+    SumCounts += newCount - oldCount;
+    SumSquares += newCount * newCount - oldCount * oldCount;
+    Slot = (Slot + 1) % Period;
+    if (Samples < Period) {
+      Samples++;
     }
 
-    float STDCPM = 0;
-    // We need the average CPM for standard deviation, so run our loop again.
-    for (int idx = 0; idx < Period; idx++) {
-      STDCPM += sq(COUNTS[idx] - (float)AVGCPM/Period);// calculate the standard deviation of the samples
-    }
-    STDCPM = sqrt(STDCPM);                            // / sqrt(Period), but we're doing stddev over samples per second already
+    float meanPerSec = Samples ? (float)SumCounts / Samples : 0;
+    AVGCPM = (unsigned long)(meanPerSec * 60.0);
 
-    if (Slot >= Period) {
-      Starting = false;
-      Slot = 0;
+    float variancePerSec = 0;
+    if (Samples > 1) {
+      variancePerSec = ((float)SumSquares - ((float)SumCounts * SumCounts) / Samples) / (Samples - 1);
     }
+    float STDCPM = (Samples > 1) ? 60.0 * sqrt(variancePerSec / Samples) : 0;
 
     // https://sites.google.com/site/diygeigercounter/technical/gm-tubes-supported Fairly good explanation of conversion factors;
     // note they're technically specific to isotope AND specific tube, so you would need to have known reference sample, eg. another calibrated meter.

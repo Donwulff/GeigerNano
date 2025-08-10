@@ -37,7 +37,7 @@ The sliding window CPM is written to the USB serial port at *9600bps* every seco
 
 As a way of compromise for survey meter needs, if the one-second CPM value exceeds current reading by more than 1000 (This would normally require 17 more/less counts per one second) the reading will reset to new CPM value. I'm still looking for best way to trigger this.
 
-Pseudo standard deviation is calculated for the one second samples over one minute. Standard deviation for the counts per second is multiplied by square root of sample number (60), eliminating the divisor in standard deviation, to arrive at a pseudo-stdev for range of CPM variation which reacts within single minute.
+Counts per minute are calculated over a sliding one minute window using a running sum. An unbiased sample variance of the per second counts is maintained to report the standard error of the CPM reading.
 
 Dead-time which is the minimum time between counts is tracked as well, shown as lowest microseconds between counts after the microSieverts/hour. For **GC-1602-NANO** this appears to be 250 microseconds due to pulse-width of the count signal. The interrupt code itself seems to run 4-8 microseconds, so the increased bookkeeping doesn't seem to be an issue.
 
