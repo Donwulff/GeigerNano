@@ -29,10 +29,10 @@ LiquidCrystalI2C_RS_EN(lcd, 0x27, false);
 // If your backpack is wired EN,RW,RS then use this version instead of the above.
 //LiquidCrystalI2C_EN_RS(lcd, 0x20, false)
 
-#define LOGtime (1000)                    // Logging time in milliseconds (1 second)
-#define Period (60)                       // the period of 1 minute for calculating the CPM values
-#define CONVERSION (151.0*2)              // Conversion factor from counts to uSv/h; see comments
-#define COINCIDENCE (20)                  // Interrupt processing time for co-incidence detection
+constexpr unsigned long LOGtime = 1000UL;          // Logging time in milliseconds (1 second)
+constexpr unsigned int Period = 60;                // the period of 1 minute for calculating the CPM values
+constexpr float CONVERSION = 151.0f * 2;           // Conversion factor from counts to uSv/h; see comments
+constexpr unsigned long COINCIDENCE = 20;          // Interrupt processing time for co-incidence detection
 
 volatile unsigned long Coincidence = 0;   // Count of coincidences
 unsigned long COUNTS[Period];             // array for storing the measured amounts of impulses in consecutive 1 second periods
@@ -48,8 +48,8 @@ unsigned int Samples = 0;                 // number of valid samples in window
 unsigned long Start;                      // Millis value when logging started; must be 32-bit
 
 #ifdef TEST_INT
-volatile bool INT = false;                // Flag for tracking whether we're within interrupt. Shouldn't end up set, but for debugging
-volatile bool WasInt = false;             // Debugging flag to see if we've run during interrupt handling, which would be bad.
+volatile bool inInterrupt = false;        // Flag for tracking whether we're within interrupt.
+volatile bool wasInInterrupt = false;     // Debugging flag to see if we've run during interrupt handling.
 #endif
 
 // Track the shortest interval between counts. Initialise to the maximum so
@@ -57,6 +57,21 @@ volatile bool WasInt = false;             // Debugging flag to see if we've run 
 volatile unsigned long DeadTime = 0xFFFFFFFFUL;
 volatile unsigned long LastTick1 = 0;
 volatile unsigned long LastTick2 = 0;     // tube 2
+
+static inline void processImpulse(volatile unsigned long& count,
+                                  volatile unsigned long& lastTick,
+                                  const volatile unsigned long& otherLastTick) {
+  count++;
+  unsigned long currentMicros = micros();
+  unsigned long interval = currentMicros - lastTick;
+  if (interval < DeadTime) {
+    DeadTime = interval;
+  }
+  lastTick = currentMicros;
+  if (currentMicros - otherLastTick < COINCIDENCE) {
+    Coincidence++;
+  }
+}
 
 void setup() {
   // most backpacks have the backlight on pin 3.
@@ -128,52 +143,52 @@ void setup() {
     if (Samples > 1) {
       variancePerSec = ((float)SumSquares - ((float)SumCounts * SumCounts) / Samples) / (Samples - 1);
     }
-    float STDCPM = (Samples > 1) ? 60.0 * sqrt(variancePerSec / Samples) : 0;
+    float stdCpm = (Samples > 1) ? 60.0 * sqrt(variancePerSec / Samples) : 0;
 
     // https://sites.google.com/site/diygeigercounter/technical/gm-tubes-supported Fairly good explanation of conversion factors;
     // note they're technically specific to isotope AND specific tube, so you would need to have known reference sample, eg. another calibrated meter.
     // https://www.pascalchour.fr/ressources/cgm/cgm_en.html includes J305 for 60Co, though 137Cs is more likely encountered in nuclear disaster.
     // This would give us 123.147 for 60Co, 80.661 for 137Cs based on above reported SBM-20 comparison. This gives too high readings for radon background.
     // The CAJOE-1.3 original sketch has conversion factor around 151, which seems closer to SBS-20 value, but I'm leaving it as default for compatibility.
-    float Sievert = (AVGCPM / CONVERSION);
+    float sievert = AVGCPM / CONVERSION;
 
     // lcd.clear(); // Causes
     lcd.setCursor(0, 0);
     // lcd.print("CPM=");                              // Matches original sketch, but isn't it kinda obvious? Save space for stddev
     lcd.print(AVGCPM);
     lcd.write((uint8_t)0);                             // The +/- symbol
-    lcd.print(STDCPM);
+    lcd.print(stdCpm);
 
 #ifdef TEST_INT
-    if (INT || WasInt) {
-      WasInt = true;
+    if (inInterrupt || wasInInterrupt) {
+      wasInInterrupt = true;
       lcd.print("WI ");                                // Indicator for non-atomic interrupt problem; shouldn't happen
     }
 #endif
     lcd.print("     ");                                // Clear any possible leftover on screen
 
-    // Status is always 7 characters long so we can print over previous status, one extra for ending zero
+    // Status fits within 7 characters to overwrite previous values
     // http://www-ns.iaea.org/downloads/iec/health-hazard-perspec-charts2013.pdf 1 month living limits; check for contamination of ingestibles!
-    char Status[8] = "Safety";
+    const char* status = "Safety";
 #ifdef IAEA_THRESHOLDS
-    if (Sievert > 100) {
-      strcpy((char*)&Status, "Danger");
-    } else if (Sievert > 25) {
-      strcpy((char*)&Status, "Warning");
+    if (sievert > 100) {
+      status = "Danger";
+    } else if (sievert > 25) {
+      status = "Warning";
     }
 #else
-    if (Sievert > 10) {
-      strcpy((char*)&Status, "Danger!");
-    } else if (Sievert > 0.5) {
-      strcpy((char*)&Status, "Unsafe");
+    if (sievert > 10) {
+      status = "Danger!";
+    } else if (sievert > 0.5) {
+      status = "Unsafe";
     }
 #endif
-    lcd.setCursor(16 - strlen(Status), 0);
-    lcd.print(Status);
+    lcd.setCursor(16 - strlen(status), 0);
+    lcd.print(status);
 
     // Second LCD line, show calculated sieverts and minimum time between ticks (max deadtime)
     lcd.setCursor(0, 1);
-    lcd.print(Sievert);
+    lcd.print(sievert);
     lcd.print(" \x01Sv/h");
 
     unsigned long coincidence;
@@ -191,8 +206,8 @@ void setup() {
 
   Serial.begin(9600);
 
-  attachInterrupt(digitalPinToInterrupt(TUBE1_PIN), IMPULSE1, FALLING);
-  attachInterrupt(digitalPinToInterrupt(TUBE2_PIN), IMPULSE2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(TUBE1_PIN), handleTube1Impulse, FALLING);
+  attachInterrupt(digitalPinToInterrupt(TUBE2_PIN), handleTube2Impulse, FALLING);
   Start = millis();
 }
 
@@ -200,42 +215,23 @@ void loop() {
   taskManager.runLoop();
 }
 
-void IMPULSE1()
+void handleTube1Impulse()
 {
 #ifdef TEST_INT
   // https://microchipdeveloper.com/8avr:int Interrupts within interrupts shouldn't happen on AVR, but then again what hardware are you running?
-  if (1 == INT) {
-    WasInt = true;
+  if (inInterrupt) {
+    wasInInterrupt = true;
   }
-  INT = 1;
+  inInterrupt = true;
 #endif
-
-  Counts1++;
-  unsigned long Micros = micros();
-  // When micros rolls over, it will be maxint so won't be smaller.
-  if ((Micros - LastTick1) < DeadTime) {
-    DeadTime = Micros - LastTick1;
-  }
-  LastTick1 = Micros;
-  if(LastTick1 - LastTick2 < COINCIDENCE) {
-    Coincidence++;
-  }
+  processImpulse(Counts1, LastTick1, LastTick2);
 
 #ifdef TEST_INT
-  INT = 0;
+  inInterrupt = false;
 #endif
 }
 
-void IMPULSE2()
+void handleTube2Impulse()
 {
-  Counts2++;
-  unsigned long Micros = micros();
-  // When micros rolls over, it will be maxint so won't be smaller.
-  if ((Micros - LastTick2) < DeadTime) {
-    DeadTime = Micros - LastTick2;
-  }
-  LastTick2 = Micros;
-  if(LastTick2 - LastTick1 < COINCIDENCE) {
-    Coincidence++;
-  }
+  processImpulse(Counts2, LastTick2, LastTick1);
 }
